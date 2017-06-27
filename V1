@@ -1,0 +1,353 @@
+#include <Arduino.h>
+
+// reading liquid flow rate using Seeeduino and Water Flow Sensor from Seeedstudio.com
+// Code adapted by Charles Gantt from PC Fan RPM code written by Crenn @thebestcasescenario.com
+// http:/themakersworkbench.com http://thebestcasescenario.com http://seeedstudio.com
+
+
+int ativarDisplay = 1;
+int ativarDados = 1;
+int ativarRelogio = 1;
+
+                                    //LiquidCrystal_I2C lcd (0x27, 16, 2);
+#include <Wire.h>
+                                      //#include <LiquidCrystal_I2C.h>
+
+                                      //#include <virtuabotixRTC.h>
+#include "RTClib.h"
+
+RTC_DS3231 rtc;
+
+                                            // Determina os pinos ligados ao modulo
+                                            // myRTC(clock, data, rst)
+                                            //virtuabotixRTC myRTC(6, 7, 8);
+                                            //virtuabotixRTC myRTC(11, 12, 13);
+
+//===========================
+#include <LiquidCrystal.h>
+LiquidCrystal lcd(8, 9, 4, 5, 6, 7);
+//===========================
+
+volatile int NbTopsFan; //measuring the rising edges of the signal
+int Calc;
+int hallsensor = 2; //The pin location of the sensor
+int totLitros = 0;
+
+String dataHora;
+
+float flt = 15;
+
+volatile long fator;
+
+                void rpm () //This is the function that the interupt calls
+                {
+                  NbTopsFan++; //This function measures the rising and falling edge of the hall effect sensors signal
+                }
+
+//=====================
+//Parte do cartÃ£o de gravaÃ§Ã£o
+// include the SD library:
+#include <SPI.h>
+#include <SD.h>
+File myFile;
+
+
+// set up variables using the SD utility library functions:
+Sd2Card card;
+SdVolume volume;
+SdFile root;
+
+// change this to match your SD shield or module;
+// Arduino Ethernet shield: pin 4
+// Adafruit SD shields and modules: pin 10
+// Sparkfun SD shield: pin 8
+// MKRZero SD: SDCARD_SS_PIN
+const int chipSelect = 10;
+//=======================================
+
+
+
+
+// The setup() method runs once, when the sketch starts
+void setup() //
+{
+
+  pinMode(hallsensor, INPUT); //initializes digital pin 2 as an input
+  Serial.begin(9600); //This is the setup function where the serial port is initialised,
+
+  //tava 0
+  attachInterrupt(0, rpm, RISING); //and the interrupt is attached
+  Serial.print ("Setup \r\n");
+
+  lcd.begin(16, 2);
+  fator = 15;
+
+  //myRTC.setDS1302Time(00, 33, 14, 2, 23, 06, 2017);
+  //Serial.print (String(myRTC.dayofmonth));
+
+//==========================================
+//PARTE PARA O RELÃ“GIO DA PLACA DE DADOS
+//==========================================
+
+#ifndef ESP8266
+  while (!Serial); // for Leonardo/Micro/Zero
+#endif
+
+  Serial.begin(9600);
+
+  delay(3000); // wait for console opening
+
+  if (! rtc.begin()) {
+    Serial.println("Couldn't find RTC");
+    while (1);
+  }
+
+  if (rtc.lostPower()) {
+    Serial.println("RTC lost power, lets set the time!");
+    // following line sets the RTC to the date & time this sketch was compiled
+    rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+    // This line sets the RTC with an explicit date & time, for example to set
+    // January 21, 2014 at 3am you would call:
+    //rtc.adjust(DateTime(2017, 6, 25, 16, 40, 0));
+  }
+  //rtc.adjust(DateTime(F(__DATE__), F(__TIME__)));
+
+
+//==========================================
+//Parte do cartÃ£o de gravaÃ§Ã£o
+//==========================================
+  // Open serial communications and wait for port to open:
+  //Serial.begin(9600);
+//  while (!Serial) {
+//    ; // wait for serial port to connect. Needed for native USB port only
+//  }
+
+
+  //Serial.print("\nInitializing SD card...");
+
+  // we'll use the initialization code from the utility libraries
+  // since we're just testing if the card is working!
+  if (!card.init(SPI_HALF_SPEED, chipSelect)) {
+    Serial.println("initialization failed. Things to check:");
+//    Serial.println("* is a card inserted?");
+//    Serial.println("* is your wiring correct?");
+//    Serial.println("* did you change the chipSelect pin to match your shield or module?");
+    return;
+  } else {
+    Serial.println("Wiring is correct and a card is present.");
+  }
+
+  // Now we will try to open the 'volume'/'partition' - it should be FAT16 or FAT32
+  if (!volume.init(card)) {
+    Serial.println("Could not find FAT16/FAT32 partition.\nMake sure you've formatted the card");
+    return;
+  }
+//
+//
+//  //Abre o arquivo para leitura
+//  myFile = SD.open("set.txt");
+//  if (myFile) {
+//    Serial.println("set.txt:");
+//
+//    // read from the file until there's nothing else in it:
+//    while (myFile.available()) {
+//      Serial.write(myFile.read());
+//      Serial.println("|/n/r");
+//    }
+//    // close the file:
+//    myFile.close();
+//  } else {
+//    // if the file didn't open, print an error:
+//    Serial.println("error opening test.txt");
+//  }
+//
+//
+//  //Abre o arquivo para gravação
+//  myFile = SD.open("set.txt", FILE_WRITE);
+//
+//  // if the file opened okay, write to it:
+//  if (myFile) {
+//    Serial.print("Writing to test.txt...");
+//    myFile.println("testing 1, 2, 3.");
+//    // close the file:
+//    myFile.close();
+//    Serial.println("done.");
+//  } else {
+//    // if the file didn't open, print an error:
+//    Serial.println("error opening test.txt");
+//  }
+
+
+
+
+
+  Serial.println("\nFinal Setup ");
+  //root.openRoot(volume);
+
+  // list all files in the card with date and size
+  //root.ls(LS_R | LS_DATE | LS_SIZE);
+  //=======================================================
+
+
+}
+
+// the loop() method runs over and over again,
+// as long as the Arduino has power
+void loop ()
+{
+
+//myRTC.updateTime();
+  Serial.println("\n Ini Loop");
+  NbTopsFan = 0;                  //Set NbTops to 0 ready for calculations
+  //Serial.println("\n Ini Loop2");
+  //sei();                          //Enables interrupts
+  //Serial.println("\n Ini Loop3");
+  delay (1000);                   //Wait 1 second
+  //Serial.println("\n Ini Loop4");
+  //cli();  //Disable interrupts
+  Calc = (NbTopsFan * 60 / 7.5);  //(Pulse frequency x 60) / 7.5Q, = flow rate in L/hour
+  //Serial.print ("P1 \r\n");
+
+  if (NbTopsFan > 0){
+    totLitros = totLitros + NbTopsFan;
+
+    //Serial.print (Calc, DEC);       //Prints the number calculated above
+    //Serial.print (" L/hour\r\n");   //Prints "L/hour" and returns a new line
+    //Serial.print (NbTopsFan , DEC);
+    //lcd.backlight();
+         Serial.print (totLitros * (4 + (fator/100)), DEC);
+      Serial.print (" Litros \r\n");
+
+    //Serial.print (totLitros * fator, DEC);
+
+   // Serial.print (fator + " a \r\n");
+
+  }else{
+    if(totLitros != 0){
+      Serial.print (totLitros * (4 + (fator/100)), DEC);
+      Serial.print (" b \r\n");
+
+      totLitros = 0;
+      Serial.print ("ZERADO \r\n");
+
+      }
+   }
+
+
+       int botao;
+       botao = analogRead (0);  //Leitura do valor da porta analÃ³gica A0
+
+    //Serial.println("\n Ini Loop3");
+
+        Serial.print (botao);
+        Serial.print (" - ");
+        Serial.print (fator);
+       Serial.print (" \r\n");
+
+       if (botao < 95) {
+        //lcd.print ("Direita ");
+       }
+       else
+       if (botao < 200) { //ACIMA
+        fator = fator + 1;
+        flt = flt +  1.245;
+        //lcd.print (String(fator, 3));
+
+       }
+       else if (botao < 400){  //ABAIXO
+        fator = fator - 1;
+        flt = flt - 1.245;
+        //lcd.print (String(fator, DEC));
+       }
+       else if (botao < 600){
+        //lcd.print ("Esquerda");
+       }
+       else if (botao < 800){
+        //lcd.print ("Select  ");
+       // lcd.noBacklight();
+       }
+        lcd.clear();
+       lcd.setCursor(0,0);
+        formataDataHora(dataHora);
+        lcd.print (String(dataHora));
+
+//
+
+       //lcd.print (400 + fator);
+       //lcd.print (" Litros");
+
+
+        lcd.setCursor(0,1);
+        //lcd.print ("Fator:");
+        lcd.print (String(flt,3));
+        lcd.setCursor(8,1);
+        lcd.print (fator, DEC);
+
+       //===========================
+
+
+ //String(5.698, 3);                                // using a float and the decimal
+
+}
+
+void formataDataHora(String &dataHora){
+    DateTime myRTC = rtc.now();
+    String dia = String(myRTC.day(),DEC);
+    String mes = String(myRTC.month(),DEC);
+    String ano = String(myRTC.year(),DEC);
+
+Serial.println(String(myRTC.day(),DEC));
+
+    //String tdia = dia;
+   // String tmes = mes;
+    String tano = "";
+     tano += ano;
+
+
+    String dataFormatada = "";
+    dataFormatada += dia;
+    dataFormatada += "/";
+    dataFormatada += mes;
+    dataFormatada += "/";
+    dataFormatada += tano.substring(2);
+     dataFormatada += "-";
+
+    String hora = String(myRTC.hour(),DEC);
+    String minuto = String(myRTC.minute(),DEC);
+
+    String segundo = String(myRTC.second(),DEC);
+    //iSegundo = (myRTC.second(),DEC);
+
+//    String thora = "";
+//
+//    if (hora < 10)
+//    {
+//      thora += "0";
+//    }
+//    thora += hora;
+//
+//   String tminuto = "";
+//    if (minuto < 10)
+//    {
+//      tminuto += "0";
+//    }
+//    tminuto += minuto;
+//
+//    String tsegundo = "";
+//    if (segundo < 10)
+//    {
+//      tsegundo += "0";
+//    }
+//    tsegundo += segundo;
+
+    String horaFormatada = "";
+    horaFormatada = hora;
+    horaFormatada +=  ":";
+    horaFormatada +=  minuto;
+    horaFormatada += ":";
+    horaFormatada += segundo;
+
+  dataHora = dataFormatada + horaFormatada;
+         Serial.print (dataHora);
+       Serial.print (" \r\n");
+}
